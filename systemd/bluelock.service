@@ -1,10 +1,10 @@
 [Unit]
-Description=watchlock BLE proximity lock/unlock daemon
+Description=bluelock BLE proximity lock/unlock daemon
 After=bluetooth.target
 
 [Service]
 Type=simple
-ExecStart=%h/.local/bin/watchlock run
+ExecStart=%h/.local/bin/bluelock run
 Restart=on-failure
 RestartSec=5
 

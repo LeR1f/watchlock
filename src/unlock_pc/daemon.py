@@ -35,7 +35,7 @@ class Daemon:
         )
         self._state_machine = StateMachine()
         self._grace_task: asyncio.Task | None = None
-        self._watch_seen = False  # True once watch is seen NEAR in current session
+        self._device_seen = False  # True once watch is seen NEAR in current session
 
     async def run(self) -> None:
         """Run the daemon until cancelled."""
@@ -93,12 +93,12 @@ class Daemon:
         """Convert proximity state to event and drive state machine."""
         # Track if watch has been seen during this unlocked session
         if proximity == ProximityState.NEAR:
-            if not self._watch_seen:
-                logger.info("Watch detected — proximity lock/unlock active")
-            self._watch_seen = True
+            if not self._device_seen:
+                logger.info("Device detected — proximity lock/unlock active")
+            self._device_seen = True
 
         # Don't lock if watch was never seen this session
-        if not self._watch_seen and proximity in (ProximityState.FAR, ProximityState.ABSENT):
+        if not self._device_seen and proximity in (ProximityState.FAR, ProximityState.ABSENT):
             return
 
         event = proximity_to_event(proximity)
@@ -120,7 +120,7 @@ class Daemon:
                 self._start_grace()
 
             case SessionState.LOCKED:
-                self._watch_seen = False  # Reset for next session
+                self._device_seen = False  # Reset for next session
                 if not await self._platform.is_session_locked():
                     await self._platform.lock_session()
                     logger.info("Session locked")

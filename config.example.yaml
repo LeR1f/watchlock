@@ -1,7 +1,7 @@
-# watchlock configuration
-# Copy to ~/.config/watchlock/config.yaml
+# bluelock configuration
+# Copy to ~/.config/bluelock/config.yaml
 
-# Device — run 'watchlock pair' to configure
+# Device — run 'bluelock pair' to configure
 device:
   address: "AA:BB:CC:DD:EE:FF"
   name: "Galaxy Watch 5"
@@ -13,7 +13,7 @@ distance:
 
 # RSSI calibration (advanced — tune if distance estimates are off)
 rssi:
-  tx_power: -59            # RSSI measured at 1m from your watch (calibrate by running 'watchlock scan')
+  tx_power: -59            # RSSI measured at 1m from your watch (calibrate by running 'bluelock scan')
   path_loss_exponent: 2.5  # 2.0=open space, 2.5=typical office, 3.0=walls/obstacles
   smoothing_alpha: 0.3     # EMA factor (0-1). Lower=more smoothing, slower reaction.
   max_jump: 20             # Max RSSI change per reading (dBm). Spikes beyond this are clamped.
@@ -28,4 +28,4 @@ timing:
 # Daemon
 daemon:
   log_level: INFO       # DEBUG for troubleshooting
-  log_file: null        # null=stderr, or path like /tmp/watchlock.log
+  log_file: null        # null=stderr, or path like /tmp/bluelock.log

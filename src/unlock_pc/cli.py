@@ -1,4 +1,4 @@
-"""CLI interface for watchlock."""
+"""CLI interface for bluelock."""
 
 from __future__ import annotations
 
@@ -15,29 +15,29 @@ from unlock_pc.signal_proc import rssi_to_distance
 
 @click.group(epilog="""
 \b
-Available settings for 'watchlock set <key> <value>':
+Available settings for 'bluelock set <key> <value>':
   unlock-distance    Distance (m) below which the PC unlocks        [default: 5.0]
   lock-distance      Distance (m) above which the PC locks          [default: 6.0]
   grace-period       Seconds to wait before locking after signal loss [default: 10.0]
   absence-timeout    Seconds without signal before watch is gone     [default: 25.0]
   stability-readings Consecutive readings before changing state      [default: 3]
   scan-interval      Seconds between BLE scan cycles                 [default: 1.0]
-  tx-power           RSSI at 1m (dBm), calibrate with 'watchlock scan' [default: -59]
+  tx-power           RSSI at 1m (dBm), calibrate with 'bluelock scan' [default: -59]
   smoothing-alpha    EMA factor (0-1), lower = smoother              [default: 0.3]
   max-jump           Max RSSI jump per reading, spikes are clamped   [default: 20]
   path-loss          Environment: 2.0=open, 2.5=office, 3.0=walls   [default: 2.5]
   log-level          DEBUG, INFO, WARNING, or ERROR                  [default: INFO]
 
 Examples:
-  watchlock set grace-period 15
-  watchlock set lock-distance 5
-  watchlock set log-level DEBUG
+  bluelock set grace-period 15
+  bluelock set lock-distance 5
+  bluelock set log-level DEBUG
 """)
 @click.option("--config", "-c", "config_path", type=click.Path(path_type=Path), default=None,
               help=f"Config file path (default: {DEFAULT_CONFIG_PATH})")
 @click.pass_context
 def main(ctx: click.Context, config_path: Path | None) -> None:
-    """watchlock - Lock/unlock your PC based on your watch's BLE proximity."""
+    """bluelock - Lock/unlock your PC based on your watch's BLE proximity."""
     ctx.ensure_object(dict)
     ctx.obj["config_path"] = config_path
 
@@ -109,7 +109,7 @@ def pair(ctx: click.Context, paired: bool) -> None:
     devices = asyncio.run(discover_devices(10.0))
 
     if not devices:
-        click.echo("No devices found. Try 'watchlock pair --paired' to pick from paired devices.")
+        click.echo("No devices found. Try 'bluelock pair --paired' to pick from paired devices.")
         sys.exit(1)
 
     click.echo(f"\n{'#':<4} {'ADDRESS':<20} {'RSSI':>6} {'NAME'}")
@@ -172,7 +172,7 @@ def set_cmd(ctx: click.Context, key: str, value: str) -> None:
       absence-timeout    Seconds without signal before watch is considered gone
       stability-readings Consecutive readings required before changing state
       scan-interval      Seconds between BLE scan cycles
-      tx-power           RSSI at 1m (dBm), calibrate with 'watchlock scan'
+      tx-power           RSSI at 1m (dBm), calibrate with 'bluelock scan'
       smoothing-alpha    EMA factor (0-1), lower = smoother
       max-jump           Max RSSI jump per reading (dBm), spikes are clamped
       path-loss          Environment: 2.0=open, 2.5=office, 3.0=walls
@@ -180,9 +180,9 @@ def set_cmd(ctx: click.Context, key: str, value: str) -> None:
 
     \b
     Examples:
-      watchlock set grace-period 15
-      watchlock set lock-distance 5
-      watchlock set log-level DEBUG
+      bluelock set grace-period 15
+      bluelock set lock-distance 5
+      bluelock set log-level DEBUG
     """
     config_path = ctx.obj.get("config_path")
     try:
@@ -195,11 +195,11 @@ def set_cmd(ctx: click.Context, key: str, value: str) -> None:
     import subprocess
 
     result = subprocess.run(
-        ["systemctl", "--user", "is-active", "watchlock"],
+        ["systemctl", "--user", "is-active", "bluelock"],
         capture_output=True, text=True,
     )
     if result.stdout.strip() == "active":
-        subprocess.run(["systemctl", "--user", "restart", "watchlock"])
+        subprocess.run(["systemctl", "--user", "restart", "bluelock"])
         click.echo("Daemon restarted.")
 
 
@@ -209,25 +209,25 @@ def enable() -> None:
     import shutil
     import subprocess
 
-    service_dst = Path.home() / ".config" / "systemd" / "user" / "watchlock.service"
+    service_dst = Path.home() / ".config" / "systemd" / "user" / "bluelock.service"
     service_dst.parent.mkdir(parents=True, exist_ok=True)
 
-    watchlock_bin = shutil.which("watchlock")
-    if not watchlock_bin:
-        venv_bin = Path(sys.executable).parent / "watchlock"
+    bluelock_bin = shutil.which("bluelock")
+    if not bluelock_bin:
+        venv_bin = Path(sys.executable).parent / "bluelock"
         if venv_bin.exists():
-            watchlock_bin = str(venv_bin)
+            bluelock_bin = str(venv_bin)
         else:
-            click.echo("Error: 'watchlock' not found. Install with: pipx install .", err=True)
+            click.echo("Error: 'bluelock' not found. Install with: pipx install .", err=True)
             sys.exit(1)
 
     service_dst.write_text(
         f"[Unit]\n"
-        f"Description=watchlock BLE proximity lock/unlock daemon\n"
+        f"Description=bluelock BLE proximity lock/unlock daemon\n"
         f"After=bluetooth.target\n\n"
         f"[Service]\n"
         f"Type=simple\n"
-        f"ExecStart={watchlock_bin} run\n"
+        f"ExecStart={bluelock_bin} run\n"
         f"Restart=on-failure\n"
         f"RestartSec=5\n\n"
         f"[Install]\n"
@@ -235,7 +235,7 @@ def enable() -> None:
     )
 
     subprocess.run(["systemctl", "--user", "daemon-reload"])
-    subprocess.run(["systemctl", "--user", "enable", "--now", "watchlock"])
+    subprocess.run(["systemctl", "--user", "enable", "--now", "bluelock"])
     click.echo("Daemon enabled and started. It will auto-start at login.")
 
 
@@ -244,7 +244,7 @@ def disable() -> None:
     """Stop the daemon and disable auto-start."""
     import subprocess
 
-    subprocess.run(["systemctl", "--user", "disable", "--now", "watchlock"])
+    subprocess.run(["systemctl", "--user", "disable", "--now", "bluelock"])
     click.echo("Daemon stopped and disabled.")
 
 
@@ -253,14 +253,14 @@ def status() -> None:
     """Show whether the daemon is running."""
     import subprocess
 
-    subprocess.run(["systemctl", "--user", "status", "watchlock", "--no-pager"])
+    subprocess.run(["systemctl", "--user", "status", "bluelock", "--no-pager"])
 
 
 @main.command(short_help="Run daemon in foreground (debug)")
 @click.option("--debug", is_flag=True, help="Enable debug logging")
 @click.pass_context
 def run(ctx: click.Context, debug: bool) -> None:
-    """Start the daemon in the foreground (prefer 'watchlock enable')."""
+    """Start the daemon in the foreground (prefer 'bluelock enable')."""
     from unlock_pc.daemon import run_daemon
 
     config_path = ctx.obj.get("config_path")
@@ -279,7 +279,7 @@ def run(ctx: click.Context, debug: bool) -> None:
         click.echo(f"Config error: {e}", err=True)
         sys.exit(1)
 
-    click.echo("watchlock daemon starting")
+    click.echo("bluelock daemon starting")
     click.echo(f"  Target: {config.device_name} ({config.device_address})")
     click.echo(f"  Unlock distance: < {config.unlock_max_distance}m")
     click.echo(f"  Lock distance:   > {config.lock_min_distance}m")
