@@ -14,7 +14,7 @@ DEFAULT_CONFIG_PATH = Path.home() / ".config" / "watchlock" / "config.yaml"
 
 DEFAULTS = {
     "device": {"address": "", "name": ""},
-    "distance": {"unlock_max": 2.0, "lock_min": 4.0},
+    "distance": {"unlock_max": 5.0, "lock_min": 6.0},
     "rssi": {"tx_power": -59, "path_loss_exponent": 2.5, "smoothing_alpha": 0.3, "max_jump": 20},
     "timing": {
         "scan_interval": 1.0,
@@ -145,10 +145,43 @@ SETTINGS = {
 }
 
 
+SETTING_BOUNDS = {
+    "unlock-distance": (0.1, 15.0),
+    "lock-distance": (0.1, 15.0),
+    "grace-period": (0.0, 300.0),
+    "absence-timeout": (1.0, 300.0),
+    "stability-readings": (1, 20),
+    "scan-interval": (0.1, 60.0),
+    "tx-power": (-100, 0),
+    "smoothing-alpha": (0.01, 1.0),
+    "max-jump": (1, 100),
+    "path-loss": (1.0, 5.0),
+}
+
+VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR"}
+
+
 def set_setting(key: str, value: str, path: Path | None = None) -> None:
     """Update a single setting in the config file."""
     config_path = path or DEFAULT_CONFIG_PATH
     config_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Parse and validate value
+    if key in ("stability-readings",):
+        parsed = int(value)
+    elif key in ("tx-power",):
+        parsed = int(value)
+    elif key in ("log-level",):
+        parsed = value.upper()
+        if parsed not in VALID_LOG_LEVELS:
+            raise ValueError(f"log-level must be one of {', '.join(sorted(VALID_LOG_LEVELS))}, got '{value}'")
+    else:
+        parsed = float(value)
+
+    if key in SETTING_BOUNDS:
+        lo, hi = SETTING_BOUNDS[key]
+        if not lo <= parsed <= hi:
+            raise ValueError(f"{key} must be between {lo} and {hi}, got {parsed}")
 
     if config_path.exists():
         with open(config_path) as f:
@@ -158,16 +191,7 @@ def set_setting(key: str, value: str, path: Path | None = None) -> None:
 
     section, field = SETTINGS[key]
     data.setdefault(section, {})
-
-    # Auto-cast: int for stability-readings/tx-power, str for log-level, float for rest
-    if key in ("stability-readings",):
-        data[section][field] = int(value)
-    elif key in ("tx-power",):
-        data[section][field] = int(value)
-    elif key in ("log-level",):
-        data[section][field] = value.upper()
-    else:
-        data[section][field] = float(value)
+    data[section][field] = parsed
 
     with open(config_path, "w") as f:
         yaml.dump(data, f, default_flow_style=False)

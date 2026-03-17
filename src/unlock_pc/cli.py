@@ -12,22 +12,27 @@ import click
 from unlock_pc.config import DEFAULT_CONFIG_PATH, SETTINGS, load_config, save_device, set_setting
 from unlock_pc.signal_proc import rssi_to_distance
 
-SETTING_HELP = {
-    "unlock-distance": "Distance (m) below which the PC unlocks",
-    "lock-distance": "Distance (m) above which the PC locks",
-    "grace-period": "Seconds to wait before locking after signal loss",
-    "absence-timeout": "Seconds without any signal before watch is considered gone",
-    "stability-readings": "Consecutive readings required before changing state",
-    "scan-interval": "Seconds between BLE scan cycles",
-    "tx-power": "RSSI at 1 meter (dBm), calibrate with 'watchlock scan'",
-    "smoothing-alpha": "EMA smoothing factor (0-1), lower = smoother",
-    "max-jump": "Max RSSI change per reading (dBm), spikes beyond are clamped",
-    "path-loss": "Environment factor: 2.0=open, 2.5=office, 3.0=walls",
-    "log-level": "Log verbosity: DEBUG, INFO, WARNING, ERROR",
-}
 
+@click.group(epilog="""
+\b
+Available settings for 'watchlock set <key> <value>':
+  unlock-distance    Distance (m) below which the PC unlocks        [default: 5.0]
+  lock-distance      Distance (m) above which the PC locks          [default: 6.0]
+  grace-period       Seconds to wait before locking after signal loss [default: 10.0]
+  absence-timeout    Seconds without signal before watch is gone     [default: 25.0]
+  stability-readings Consecutive readings before changing state      [default: 3]
+  scan-interval      Seconds between BLE scan cycles                 [default: 1.0]
+  tx-power           RSSI at 1m (dBm), calibrate with 'watchlock scan' [default: -59]
+  smoothing-alpha    EMA factor (0-1), lower = smoother              [default: 0.3]
+  max-jump           Max RSSI jump per reading, spikes are clamped   [default: 20]
+  path-loss          Environment: 2.0=open, 2.5=office, 3.0=walls   [default: 2.5]
+  log-level          DEBUG, INFO, WARNING, or ERROR                  [default: INFO]
 
-@click.group()
+Examples:
+  watchlock set grace-period 15
+  watchlock set lock-distance 5
+  watchlock set log-level DEBUG
+""")
 @click.option("--config", "-c", "config_path", type=click.Path(path_type=Path), default=None,
               help=f"Config file path (default: {DEFAULT_CONFIG_PATH})")
 @click.pass_context
@@ -37,7 +42,7 @@ def main(ctx: click.Context, config_path: Path | None) -> None:
     ctx.obj["config_path"] = config_path
 
 
-@main.command()
+@main.command(short_help="Scan for nearby BLE devices")
 @click.option("--timeout", "-t", default=10.0, help="Scan duration in seconds")
 def scan(timeout: float) -> None:
     """Scan for nearby BLE devices with RSSI and estimated distance."""
@@ -57,16 +62,46 @@ def scan(timeout: float) -> None:
     for dev in devices:
         dist = rssi_to_distance(dev.rssi)
         name = dev.name or "(unknown)"
-        click.echo(f"{dev.address:<20} {dev.rssi:>4} dBm {dist:>8.1f}m  {name}")
+        tag = " (paired)" if dev.via_connection else ""
+        click.echo(f"{dev.address:<20} {dev.rssi:>4} dBm {dist:>8.1f}m  {name}{tag}")
 
 
-@main.command()
+@main.command(short_help="Select your watch and save it to config")
+@click.option("--paired", "-p", is_flag=True, help="Pick from already paired devices (skip BLE scan)")
 @click.pass_context
-def pair(ctx: click.Context) -> None:
-    """Select your watch from nearby BLE devices and save it to config."""
-    from unlock_pc.scanner import discover_devices
+def pair(ctx: click.Context, paired: bool) -> None:
+    """Select your watch from nearby BLE devices and save it to config.
+
+    Use --paired to pick directly from devices already paired in bluetoothctl,
+    useful when your watch is connected but not visible via BLE scan.
+    """
+    from unlock_pc.scanner import _get_paired_devices, discover_devices
 
     config_path = ctx.obj.get("config_path")
+
+    if paired:
+        click.echo("Fetching paired devices from bluetoothctl...\n")
+        paired_devs = asyncio.run(_get_paired_devices())
+        if not paired_devs:
+            click.echo("No paired devices found. Pair your watch first with bluetoothctl.")
+            sys.exit(1)
+
+        click.echo(f"{'#':<4} {'ADDRESS':<20} {'NAME'}")
+        click.echo("-" * 50)
+        for i, (address, name) in enumerate(paired_devs, 1):
+            click.echo(f"{i:<4} {address:<20} {name}")
+
+        click.echo()
+        choice = click.prompt("Select device number", type=int)
+        if choice < 1 or choice > len(paired_devs):
+            click.echo("Invalid selection.")
+            sys.exit(1)
+
+        selected_address, selected_name = paired_devs[choice - 1]
+        save_device(selected_address, selected_name, config_path)
+        click.echo(f"\nSaved: {selected_name} ({selected_address})")
+        click.echo(f"Config: {config_path or DEFAULT_CONFIG_PATH}")
+        return
 
     click.echo("Scanning for BLE devices (10s)...\n")
     click.echo("Make sure your watch is nearby and Bluetooth is active.\n")
@@ -74,7 +109,7 @@ def pair(ctx: click.Context) -> None:
     devices = asyncio.run(discover_devices(10.0))
 
     if not devices:
-        click.echo("No devices found. Make sure Bluetooth is enabled.")
+        click.echo("No devices found. Try 'watchlock pair --paired' to pick from paired devices.")
         sys.exit(1)
 
     click.echo(f"\n{'#':<4} {'ADDRESS':<20} {'RSSI':>6} {'NAME'}")
@@ -82,7 +117,8 @@ def pair(ctx: click.Context) -> None:
 
     for i, dev in enumerate(devices, 1):
         name = dev.name or "(unknown)"
-        click.echo(f"{i:<4} {dev.address:<20} {dev.rssi:>4} dBm  {name}")
+        tag = " (paired)" if dev.via_connection else ""
+        click.echo(f"{i:<4} {dev.address:<20} {dev.rssi:>4} dBm  {name}{tag}")
 
     click.echo()
     choice = click.prompt("Select device number", type=int)
@@ -99,7 +135,7 @@ def pair(ctx: click.Context) -> None:
     click.echo(f"Config: {config_path or DEFAULT_CONFIG_PATH}")
 
 
-@main.command()
+@main.command(short_help="Show current configuration")
 @click.pass_context
 def show(ctx: click.Context) -> None:
     """Show current configuration and all settings."""
@@ -121,7 +157,7 @@ def show(ctx: click.Context) -> None:
     click.echo(f"  log-level:          {config.log_level}")
 
 
-@main.command("set")
+@main.command("set", short_help="Change a setting (see keys below)", context_settings={"ignore_unknown_options": True})
 @click.argument("key", type=click.Choice(sorted(SETTINGS.keys()), case_sensitive=False))
 @click.argument("value")
 @click.pass_context
@@ -167,7 +203,7 @@ def set_cmd(ctx: click.Context, key: str, value: str) -> None:
         click.echo("Daemon restarted.")
 
 
-@main.command()
+@main.command(short_help="Start daemon + auto-start at login")
 def enable() -> None:
     """Start the daemon and enable auto-start at login."""
     import shutil
@@ -182,7 +218,7 @@ def enable() -> None:
         if venv_bin.exists():
             watchlock_bin = str(venv_bin)
         else:
-            click.echo("Error: 'watchlock' not found. Install with: pip install watchlock", err=True)
+            click.echo("Error: 'watchlock' not found. Install with: pipx install .", err=True)
             sys.exit(1)
 
     service_dst.write_text(
@@ -203,7 +239,7 @@ def enable() -> None:
     click.echo("Daemon enabled and started. It will auto-start at login.")
 
 
-@main.command()
+@main.command(short_help="Stop daemon + disable auto-start")
 def disable() -> None:
     """Stop the daemon and disable auto-start."""
     import subprocess
@@ -212,7 +248,7 @@ def disable() -> None:
     click.echo("Daemon stopped and disabled.")
 
 
-@main.command()
+@main.command(short_help="Show daemon status")
 def status() -> None:
     """Show whether the daemon is running."""
     import subprocess
@@ -220,7 +256,7 @@ def status() -> None:
     subprocess.run(["systemctl", "--user", "status", "watchlock", "--no-pager"])
 
 
-@main.command()
+@main.command(short_help="Run daemon in foreground (debug)")
 @click.option("--debug", is_flag=True, help="Enable debug logging")
 @click.pass_context
 def run(ctx: click.Context, debug: bool) -> None:

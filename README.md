@@ -2,14 +2,14 @@
 
 Lock and unlock your Linux PC automatically based on your Bluetooth watch's proximity.
 
-When your watch is nearby, your PC stays unlocked. Walk away and it locks. Come back and it unlocks. Like Apple Watch unlock for Mac, but for Linux with any BLE watch.
+When your watch is nearby, your PC stays unlocked. Walk away and it locks. Come back and it unlocks. Like Apple Watch unlock for Mac, but for Linux with any Bluetooth watch.
 
 ## How it works
 
-watchlock continuously scans for your watch's BLE signal. It estimates distance from RSSI and:
+watchlock continuously scans for your watch's Bluetooth signal. It estimates distance from RSSI and:
 
-- **Unlocks** when the watch is closer than 2m (configurable)
-- **Locks** when the watch is farther than 4m (configurable)
+- **Unlocks** when the watch is closer than 5m (configurable)
+- **Locks** when the watch is farther than 6m (configurable)
 - Uses hysteresis, EMA smoothing, and spike rejection to avoid false triggers
 
 If you unlock your PC manually (password) without the watch nearby, it stays unlocked until the watch is detected at least once.
@@ -18,15 +18,15 @@ If you unlock your PC manually (password) without the watch nearby, it stays unl
 
 - Linux with BlueZ (most distros)
 - Python 3.11+
-- A Bluetooth LE watch (tested with Galaxy Watch 5)
+- A Bluetooth watch (tested with Galaxy Watch 5)
 - Your watch must be paired via `bluetoothctl` (one-time setup)
 
 ## Install
 
 ```bash
-git clone https://github.com/youruser/watchlock.git
+git clone https://github.com/LeR1f/watchlock.git
 cd watchlock
-pip install .
+pipx install .
 ```
 
 ## Quick start
@@ -35,8 +35,9 @@ pip install .
 # 1. Find your watch
 watchlock scan
 
-# 2. Select and save it
+# 2. Select and save it (use --paired if your watch doesn't show in scan)
 watchlock pair
+watchlock pair --paired
 
 # 3. Start the daemon (auto-starts at login)
 watchlock enable
@@ -59,8 +60,9 @@ On Samsung Galaxy Watch, you may need to initiate the connection from the watch:
 
 | Command | Description |
 |---|---|
-| `watchlock scan` | Scan for nearby BLE devices with RSSI and distance |
-| `watchlock pair` | Select your watch and save it to config |
+| `watchlock scan` | Scan for nearby devices (BLE + paired via connection) |
+| `watchlock pair` | Select your watch from scan results and save to config |
+| `watchlock pair --paired` | Pick directly from already paired devices (skip scan) |
 | `watchlock show` | Show current configuration |
 | `watchlock set <key> <value>` | Change a setting (auto-restarts daemon) |
 | `watchlock enable` | Start daemon + auto-start at login |
@@ -74,44 +76,75 @@ Every command supports `--help` for details.
 
 Adjust any setting with `watchlock set <key> <value>`:
 
-| Setting | Default | Description |
-|---|---|---|
-| `unlock-distance` | 2.0 | Distance (m) below which the PC unlocks |
-| `lock-distance` | 4.0 | Distance (m) above which the PC locks |
-| `grace-period` | 10.0 | Seconds to wait before locking after signal loss |
-| `absence-timeout` | 25.0 | Seconds without signal before watch is gone |
-| `stability-readings` | 3 | Consecutive readings before changing state |
-| `scan-interval` | 1.0 | Seconds between BLE scans |
-| `tx-power` | -59 | RSSI at 1m (dBm), calibrate with `watchlock scan` |
-| `smoothing-alpha` | 0.3 | EMA factor (0-1), lower = smoother |
-| `max-jump` | 20 | Max RSSI jump per reading, spikes are clamped |
-| `path-loss` | 2.5 | Environment: 2.0=open, 2.5=office, 3.0=walls |
-| `log-level` | INFO | DEBUG, INFO, WARNING, or ERROR |
+### `unlock-distance` (default: 5.0m, min: 0.1, max: 15.0)
 
-Examples:
+Distance below which the PC unlocks. At 5m this covers a typical room — your PC unlocks as soon as you walk in. Lower it if you want to be closer before it unlocks.
+
+### `lock-distance` (default: 6.0m, min: 0.1, max: 15.0)
+
+Distance above which the PC locks. The gap between `unlock-distance` and `lock-distance` creates a buffer zone (hysteresis) to prevent rapid lock/unlock toggling when you're near the boundary. Between 5m and 6m, nothing happens — the PC keeps its current state.
+
+### `grace-period` (default: 10.0s, min: 0.0, max: 300.0)
+
+How long to wait before locking once the watch is detected as far away. Protects against brief Bluetooth dropouts. If your PC locks too quickly when you just stand up to grab something, increase this value.
+
+### `absence-timeout` (default: 25.0s, min: 1.0, max: 300.0)
+
+How long without any BLE signal before the watch is considered gone. BLE can occasionally miss a scan. Too low = false positives. Too high = slow to lock when you actually leave.
+
+### `stability-readings` (default: 3, min: 1, max: 20)
+
+Number of consecutive readings confirming the same state (near/far) before triggering a change. Prevents a single bad reading from causing a lock/unlock. 3 means 3 scans in a row must agree.
+
+### `scan-interval` (default: 1.0s, min: 0.1, max: 60.0)
+
+Time between BLE scans. 1s = one scan per second. Lower = more responsive but uses more battery (PC and watch). Higher = slower to react.
+
+### `tx-power` (default: -59 dBm, min: -100, max: 0)
+
+The RSSI measured when the watch is exactly 1 meter away. This is the reference point for distance calculation. Every watch transmits differently — calibrate by holding your watch 1m from the PC, running `watchlock scan`, and noting the RSSI value.
+
+### `smoothing-alpha` (default: 0.3, min: 0.01, max: 1.0)
+
+EMA (Exponential Moving Average) smoothing factor. 0.3 = 30% weight on the new reading, 70% on history. Lower (0.1) = very smooth but slow to react. Higher (0.8) = responsive but jittery.
+
+### `max-jump` (default: 20 dBm, min: 1, max: 100)
+
+Maximum RSSI change allowed between two readings. If RSSI jumps more than 20 dBm at once, it's treated as a spike and clamped. Protects against sudden interference.
+
+### `path-loss` (default: 2.5, min: 1.0, max: 5.0)
+
+Models the environment for RSSI-to-distance conversion. 2.0 = open space with no obstacles. 2.5 = typical office. 3.0 = walls/obstacles between you and the PC. Directly affects distance estimates.
+
+### `log-level` (default: INFO, values: DEBUG, INFO, WARNING, ERROR)
+
+Log verbosity. Use DEBUG to diagnose issues, INFO for normal use, WARNING or ERROR for quiet operation.
+
+### Examples
 
 ```bash
 watchlock set grace-period 15        # more time before locking
-watchlock set lock-distance 5        # lock at 5m instead of 4m
+watchlock set lock-distance 8        # lock at 8m instead of 6m
 watchlock set log-level DEBUG        # verbose logging
 ```
 
 ## How locking works
 
 ```
-Watch nearby (< 2m)  →  PC unlocked
-Watch far (> 4m)     →  grace period (10s)  →  PC locked
-Watch returns (< 2m) →  PC unlocked (grace cancelled)
+Watch nearby (< 5m)  →  PC unlocked
+Watch far (> 6m)     →  grace period (10s)  →  PC locked
+Watch returns (< 5m) →  PC unlocked (grace cancelled)
 No signal (25s)      →  grace period (10s)  →  PC locked
 ```
 
-The gap between 2m and 4m is intentional (hysteresis) to prevent the PC from rapidly locking/unlocking when you're at the boundary.
+The gap between 5m and 6m is intentional (hysteresis) to prevent the PC from rapidly locking/unlocking when you're at the boundary.
 
 ## Troubleshooting
 
 **Watch not detected by `watchlock scan`:**
 - Make sure Bluetooth is on: `bluetoothctl show | grep Powered`
 - Pair your watch first: `bluetoothctl pair XX:XX:XX:XX:XX:XX`
+- Some watches don't advertise via BLE once paired — use `watchlock pair --paired` to pick from already paired devices
 
 **PC locks when I'm at my desk:**
 - Increase grace period: `watchlock set grace-period 20`
