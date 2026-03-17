@@ -24,8 +24,8 @@ If you unlock your PC manually (password) without the device nearby, it stays un
 ## Install
 
 ```bash
-git clone https://github.com/LeR1f/bluelock.git
-cd bluelock
+git clone https://github.com/LeR1f/BLuELock.git
+cd BLuELock
 pipx install .
 ```
 
