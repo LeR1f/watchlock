@@ -1,0 +1,31 @@
+# watchlock configuration
+# Copy to ~/.config/watchlock/config.yaml
+
+# Device — run 'watchlock pair' to configure
+device:
+  address: "AA:BB:CC:DD:EE:FF"
+  name: "Galaxy Watch 5"
+
+# Distance thresholds (meters)
+distance:
+  unlock_max: 2.0    # Unlock when closer than this
+  lock_min: 4.0      # Lock when further than this (hysteresis gap prevents flapping)
+
+# RSSI calibration (advanced — tune if distance estimates are off)
+rssi:
+  tx_power: -59            # RSSI measured at 1m from your watch (calibrate by running 'watchlock scan')
+  path_loss_exponent: 2.5  # 2.0=open space, 2.5=typical office, 3.0=walls/obstacles
+  smoothing_alpha: 0.3     # EMA factor (0-1). Lower=more smoothing, slower reaction.
+  max_jump: 20             # Max RSSI change per reading (dBm). Spikes beyond this are clamped.
+
+# Timing
+timing:
+  scan_interval: 1.0    # Seconds between BLE scan cycles
+  grace_period: 10.0    # Seconds to wait before locking after signal loss
+  absence_timeout: 25.0 # Seconds without any signal before device is considered gone
+  stability_readings: 3 # Consecutive readings past threshold before changing state
+
+# Daemon
+daemon:
+  log_level: INFO       # DEBUG for troubleshooting
+  log_file: null        # null=stderr, or path like /tmp/watchlock.log
