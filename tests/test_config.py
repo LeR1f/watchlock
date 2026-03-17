@@ -85,8 +85,8 @@ class TestLoadConfig:
     def test_defaults_when_no_file(self, tmp_path: Path):
         config = load_config(tmp_path / "nonexistent.yaml")
         assert config.device_address == ""
-        assert config.unlock_max_distance == 2.0
-        assert config.lock_min_distance == 4.0
+        assert config.unlock_max_distance == 5.0
+        assert config.lock_min_distance == 6.0
         assert config.smoothing_alpha == 0.3
 
     def test_partial_override(self, tmp_path: Path):
@@ -101,7 +101,7 @@ class TestLoadConfig:
         assert config.device_address == "AA:BB:CC:DD:EE:FF"
         assert config.unlock_max_distance == 1.0
         # Defaults preserved
-        assert config.lock_min_distance == 4.0
+        assert config.lock_min_distance == 6.0
         assert config.device_name == ""
 
     def test_stability_defaults(self, tmp_path: Path):
