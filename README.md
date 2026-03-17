@@ -1,31 +1,31 @@
-# watchlock
+# BLuELock
 
-Lock and unlock your Linux PC automatically based on your Bluetooth watch's proximity.
+Lock and unlock your Linux PC automatically based on Bluetooth device proximity.
 
-When your watch is nearby, your PC stays unlocked. Walk away and it locks. Come back and it unlocks. Like Apple Watch unlock for Mac, but for Linux with any Bluetooth watch.
+When your device is nearby, your PC stays unlocked. Walk away and it locks. Come back and it unlocks. Like Apple Watch unlock for Mac, but for Linux with any Bluetooth device — watch, phone, earbuds, fitness tracker, etc.
 
 ## How it works
 
-watchlock continuously scans for your watch's Bluetooth signal. It estimates distance from RSSI and:
+bluelock continuously scans for your Bluetooth device's signal. It estimates distance from RSSI and:
 
-- **Unlocks** when the watch is closer than 5m (configurable)
-- **Locks** when the watch is farther than 6m (configurable)
+- **Unlocks** when the device is closer than 5m (configurable)
+- **Locks** when the device is farther than 6m (configurable)
 - Uses hysteresis, EMA smoothing, and spike rejection to avoid false triggers
 
-If you unlock your PC manually (password) without the watch nearby, it stays unlocked until the watch is detected at least once.
+If you unlock your PC manually (password) without the device nearby, it stays unlocked until the device is detected at least once.
 
 ## Requirements
 
 - Linux with BlueZ (most distros)
 - Python 3.11+
-- A Bluetooth watch (tested with Galaxy Watch 5)
-- Your watch must be paired via `bluetoothctl` (one-time setup)
+- A Bluetooth device (tested with Galaxy Watch 5, works with phones, earbuds, etc.)
+- Your device must be paired via `bluetoothctl` (one-time setup)
 
 ## Install
 
 ```bash
-git clone https://github.com/LeR1f/watchlock.git
-cd watchlock
+git clone https://github.com/LeR1f/bluelock.git
+cd bluelock
 pipx install .
 ```
 
@@ -33,14 +33,14 @@ pipx install .
 
 ```bash
 # 1. Find your watch
-watchlock scan
+bluelock scan
 
 # 2. Select and save it (use --paired if your watch doesn't show in scan)
-watchlock pair
-watchlock pair --paired
+bluelock pair
+bluelock pair --paired
 
 # 3. Start the daemon (auto-starts at login)
-watchlock enable
+bluelock enable
 ```
 
 That's it. Your PC now locks when you walk away and unlocks when you come back.
@@ -60,21 +60,21 @@ On Samsung Galaxy Watch, you may need to initiate the connection from the watch:
 
 | Command | Description |
 |---|---|
-| `watchlock scan` | Scan for nearby devices (BLE + paired via connection) |
-| `watchlock pair` | Select your watch from scan results and save to config |
-| `watchlock pair --paired` | Pick directly from already paired devices (skip scan) |
-| `watchlock show` | Show current configuration |
-| `watchlock set <key> <value>` | Change a setting (auto-restarts daemon) |
-| `watchlock enable` | Start daemon + auto-start at login |
-| `watchlock disable` | Stop daemon + disable auto-start |
-| `watchlock status` | Show daemon status |
-| `watchlock run` | Run daemon in foreground (for debugging) |
+| `bluelock scan` | Scan for nearby devices (BLE + paired via connection) |
+| `bluelock pair` | Select your watch from scan results and save to config |
+| `bluelock pair --paired` | Pick directly from already paired devices (skip scan) |
+| `bluelock show` | Show current configuration |
+| `bluelock set <key> <value>` | Change a setting (auto-restarts daemon) |
+| `bluelock enable` | Start daemon + auto-start at login |
+| `bluelock disable` | Stop daemon + disable auto-start |
+| `bluelock status` | Show daemon status |
+| `bluelock run` | Run daemon in foreground (for debugging) |
 
 Every command supports `--help` for details.
 
 ## Settings
 
-Adjust any setting with `watchlock set <key> <value>`:
+Adjust any setting with `bluelock set <key> <value>`:
 
 ### `unlock-distance` (default: 5.0m, min: 0.1, max: 15.0)
 
@@ -102,7 +102,7 @@ Time between BLE scans. 1s = one scan per second. Lower = more responsive but us
 
 ### `tx-power` (default: -59 dBm, min: -100, max: 0)
 
-The RSSI measured when the watch is exactly 1 meter away. This is the reference point for distance calculation. Every watch transmits differently — calibrate by holding your watch 1m from the PC, running `watchlock scan`, and noting the RSSI value.
+The RSSI measured when the watch is exactly 1 meter away. This is the reference point for distance calculation. Every watch transmits differently — calibrate by holding your watch 1m from the PC, running `bluelock scan`, and noting the RSSI value.
 
 ### `smoothing-alpha` (default: 0.3, min: 0.01, max: 1.0)
 
@@ -123,9 +123,9 @@ Log verbosity. Use DEBUG to diagnose issues, INFO for normal use, WARNING or ERR
 ### Examples
 
 ```bash
-watchlock set grace-period 15        # more time before locking
-watchlock set lock-distance 8        # lock at 8m instead of 6m
-watchlock set log-level DEBUG        # verbose logging
+bluelock set grace-period 15        # more time before locking
+bluelock set lock-distance 8        # lock at 8m instead of 6m
+bluelock set log-level DEBUG        # verbose logging
 ```
 
 ## How locking works
@@ -141,23 +141,23 @@ The gap between 5m and 6m is intentional (hysteresis) to prevent the PC from rap
 
 ## Troubleshooting
 
-**Watch not detected by `watchlock scan`:**
+**Watch not detected by `bluelock scan`:**
 - Make sure Bluetooth is on: `bluetoothctl show | grep Powered`
 - Pair your watch first: `bluetoothctl pair XX:XX:XX:XX:XX:XX`
-- Some watches don't advertise via BLE once paired — use `watchlock pair --paired` to pick from already paired devices
+- Some watches don't advertise via BLE once paired — use `bluelock pair --paired` to pick from already paired devices
 
 **PC locks when I'm at my desk:**
-- Increase grace period: `watchlock set grace-period 20`
-- Increase absence timeout: `watchlock set absence-timeout 35`
-- Increase stability readings: `watchlock set stability-readings 5`
+- Increase grace period: `bluelock set grace-period 20`
+- Increase absence timeout: `bluelock set absence-timeout 35`
+- Increase stability readings: `bluelock set stability-readings 5`
 
 **Distance estimates are off:**
-- Calibrate tx-power: hold your watch 1m from the PC, run `watchlock scan`, note the RSSI, then `watchlock set tx-power <value>`
+- Calibrate tx-power: hold your watch 1m from the PC, run `bluelock scan`, note the RSSI, then `bluelock set tx-power <value>`
 - Adjust path-loss for your environment
 
 **Check daemon logs:**
 ```bash
-journalctl --user -u watchlock -f
+journalctl --user -u bluelock -f
 ```
 
 ## License

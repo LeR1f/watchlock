@@ -10,7 +10,7 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CONFIG_PATH = Path.home() / ".config" / "watchlock" / "config.yaml"
+DEFAULT_CONFIG_PATH = Path.home() / ".config" / "bluelock" / "config.yaml"
 
 DEFAULTS = {
     "device": {"address": "", "name": ""},
@@ -51,7 +51,7 @@ class Config:
 
     def validate(self) -> None:
         if not self.device_address:
-            raise ValueError("device.address is required. Run 'watchlock pair' first.")
+            raise ValueError("device.address is required. Run 'bluelock pair' first.")
         if self.unlock_max_distance >= self.lock_min_distance:
             raise ValueError(
                 f"distance.unlock_max ({self.unlock_max_distance}m) must be less than "
